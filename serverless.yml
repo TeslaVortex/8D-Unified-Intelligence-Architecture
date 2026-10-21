@@ -1,0 +1,83 @@
+service: 8d-unified-intelligence
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: us-east-1
+  memorySize: 256
+  timeout: 30
+  environment:
+    LANCEDB_PATH: /tmp/lancedb
+    LOG_LEVEL: INFO
+    MAX_CONCURRENT_REQUESTS: 10
+  layers:
+    - ${opt:layers.pythonDependencies, Fn:GetAtt}
+  iam:
+    role: arn:aws:iam::${aws:accountId}:role/lambda-execution-role
+  tracing:
+    enabled: true
+
+functions:
+  process_query:
+    handler: orchestrator.unified_intelligence_system.UnifiedIntelligenceSystem.handler
+    description: "Process intelligence queries through the 8D system"
+    timeout: 30
+    memorySize: 256
+    environment:
+      LANCEDB_PATH: /tmp/lancedb
+    tags:
+      Application: 8D-Unified-Intelligence
+      Service: process_query
+
+  health_check:
+    handler: orchestrator.unified_intelligence_system.UnifiedIntelligenceSystem.health_check
+    description: "Health check endpoint"
+    timeout: 5
+    memorySize: 128
+    environment:
+      LANCEDB_PATH: /tmp/lancedb
+    tags:
+      Application: 8D-Unified-Intelligence
+      Service: health_check
+
+layers:
+  pythonDependencies:
+    creationMethod: image
+    codeUri:
+      s3Bucket: ${self:provider.stage}-lambda-layers
+      s3Key: python-deps/
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    skipInstall: false
+    zipExclude:
+      - __pycache__
+      - .git
+      - .env
+      - *.md
+      - .pytest_cache
+      - __pycache__
+      - *.pyc
+      - .coverage
+      - htmlcov
+      - .mypy_cache
+      - .ruff_cache
+      - .vscode
+      - .idea
+
+  warmPool:
+    enabled: true
+    size: 5
+    refreshInterval: 60
+
+  coldStartStrategy:
+    lazyLoading: true
+    modulePrefetch:
+      - novelty_engine
+      - utils
